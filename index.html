@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Detection - Teeth/Smile Analysis</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 20px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .analysis-button {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #48cae4, #0077b6);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .analysis-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .analysis-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .image-container {
+            position: relative;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        #imageDisplay {
+            max-width: 100%;
+            max-height: 600px;
+            border-radius: 10px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 10px;
+            pointer-events: none;
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        .summary {
+            font-size: 1.4em;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+            color: #ffd700;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .face-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .face-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid;
+        }
+
+        .face-item.smiling {
+            border-left-color: #00ff88;
+        }
+
+        .face-item.not-smiling {
+            border-left-color: #ff6b6b;
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 1.2em;
+            color: #ffd700;
+            margin: 20px 0;
+        }
+
+        .error {
+            color: #ff6b6b;
+            text-align: center;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #48cae4);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦷 Face Detection & Teeth Analysis</h1>
+        
+        <div class="upload-section">
+            <div class="file-input-wrapper">
+                <input type="file" id="imageInput" accept="image/*" class="file-input">
+                <label for="imageInput" class="file-input-label">📸 Choose Group Photo</label>
+            </div>
+            <br>
+            <button id="analyzeBtn" class="analysis-button" disabled>🔍 Analyze Faces & Teeth</button>
+        </div>
+
+        <div id="loadingIndicator" class="loading" style="display: none;">
+            <div>Loading face detection models...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="image-container" id="imageContainer" style="display: none;">
+            <img id="imageDisplay" alt="Uploaded image">
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div id="results" class="results" style="display: none;">
+            <div id="summary" class="summary"></div>
+            <div id="faceList" class="face-list"></div>
+        </div>
+
+        <div id="errorMessage" class="error" style="display: none;"></div>
+    </div>
+
+    <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script>
+        let modelsLoaded = false;
+        let currentImage = null;
+
+        const imageInput = document.getElementById('imageInput');
+        const imageDisplay = document.getElementById('imageDisplay');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const results = document.getElementById('results');
+        const summary = document.getElementById('summary');
+        const faceList = document.getElementById('faceList');
+        const imageContainer = document.getElementById('imageContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const progressFill = document.getElementById('progressFill');
+        const errorMessage = document.getElementById('errorMessage');
+
+        async function loadModels() {
+            try {
+                // Wait for face-api to be available
+                if (typeof faceapi === 'undefined') {
+                    await new Promise(resolve => {
+                        const checkFaceApi = () => {
+                            if (typeof faceapi !== 'undefined') {
+                                resolve();
+                            } else {
+                                setTimeout(checkFaceApi, 100);
+                            }
+                        };
+                        checkFaceApi();
+                    });
+                }
+
+                loadingIndicator.style.display = 'block';
+                updateProgress(10);
+                
+                // Try multiple CDN sources for models
+                const MODEL_URLS = [
+                    'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights/',
+                    'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/',
+                    'https://unpkg.com/face-api.js@0.22.2/weights/'
+                ];
+                
+                let modelsLoaded = false;
+                let lastError = null;
+                
+                for (const MODEL_URL of MODEL_URLS) {
+                    try {
+                        console.log(`Trying to load models from: ${MODEL_URL}`);
+                        
+                        await Promise.all([
+                            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                            faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+                        ]);
+                        
+                        modelsLoaded = true;
+                        console.log(`Models loaded successfully from: ${MODEL_URL}`);
+                        break;
+                        
+                    } catch (error) {
+                        console.warn(`Failed to load from ${MODEL_URL}:`, error);
+                        lastError = error;
+                        continue;
+                    }
+                }
+                
+                if (!modelsLoaded) {
+                    throw lastError || new Error('All model sources failed');
+                }
+                
+                updateProgress(100);
+                window.modelsLoaded = true;
+                loadingIndicator.style.display = 'none';
+                console.log('All models loaded successfully');
+                
+            } catch (error) {
+                console.error('Error loading models:', error);
+                showError('Failed to load face detection models from all sources. This might be due to CORS restrictions or network issues. Please try refreshing the page.');
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        function updateProgress(percent) {
+            progressFill.style.width = percent + '%';
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentImage = e.target.result;
+                    imageDisplay.src = currentImage;
+                    imageContainer.style.display = 'block';
+                    results.style.display = 'none';
+                    
+                    imageDisplay.onload = function() {
+                        canvas.width = imageDisplay.offsetWidth;
+                        canvas.height = imageDisplay.offsetHeight;
+                        analyzeBtn.disabled = !window.modelsLoaded;
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        analyzeBtn.addEventListener('click', async function() {
+            if (!currentImage || !window.modelsLoaded) return;
+
+            try {
+                analyzeBtn.disabled = true;
+                analyzeBtn.textContent = '🔄 Analyzing...';
+                
+                // Clear previous results
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Detect faces with landmarks and expressions
+                const detections = await faceapi
+                    .detectAllFaces(imageDisplay, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceExpressions();
+
+                if (detections.length === 0) {
+                    showError('No faces detected in the image. Please try a different photo.');
+                    return;
+                }
+
+                // Calculate canvas scaling
+                const scaleX = canvas.width / imageDisplay.naturalWidth;
+                const scaleY = canvas.height / imageDisplay.naturalHeight;
+
+                let teethShowingCount = 0;
+                const faceResults = [];
+
+                detections.forEach((detection, index) => {
+                    const { detection: box, landmarks, expressions } = detection;
+                    
+                    // Scale coordinates
+                    const scaledBox = {
+                        x: box.x * scaleX,
+                        y: box.y * scaleY,
+                        width: box.width * scaleX,
+                        height: box.height * scaleY
+                    };
+
+                    // Analyze if person is showing teeth/smiling
+                    const happyScore = expressions.happy || 0;
+                    const neutralScore = expressions.neutral || 0;
+                    const sadScore = expressions.sad || 0;
+                    
+                    // Enhanced teeth detection logic
+                    const isShowingTeeth = happyScore > 0.3 || 
+                                         (happyScore > 0.1 && neutralScore < 0.6) ||
+                                         (happyScore > neutralScore && happyScore > sadScore);
+                    
+                    const confidence = Math.round(happyScore * 100);
+
+                    if (isShowingTeeth) {
+                        teethShowingCount++;
+                    }
+
+                    // Draw face box
+                    ctx.strokeStyle = isShowingTeeth ? '#00ff88' : '#ff6b6b';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(scaledBox.x, scaledBox.y, scaledBox.width, scaledBox.height);
+
+                    // Draw skeleton/landmarks
+                    if (landmarks) {
+                        const scaledLandmarks = landmarks.positions.map(point => ({
+                            x: point.x * scaleX,
+                            y: point.y * scaleY
+                        }));
+
+                        // Draw facial feature points
+                        ctx.fillStyle = isShowingTeeth ? '#00ff88' : '#ff6b6b';
+                        scaledLandmarks.forEach(point => {
+                            ctx.beginPath();
+                            ctx.arc(point.x, point.y, 1.5, 0, 2 * Math.PI);
+                            ctx.fill();
+                        });
+
+                        // Draw mouth area specifically
+                        const mouthPoints = scaledLandmarks.slice(48, 68); // Mouth landmarks
+                        if (mouthPoints.length > 0) {
+                            ctx.strokeStyle = isShowingTeeth ? '#00ff88' : '#ff6b6b';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            mouthPoints.forEach((point, i) => {
+                                if (i === 0) {
+                                    ctx.moveTo(point.x, point.y);
+                                } else {
+                                    ctx.lineTo(point.x, point.y);
+                                }
+                            });
+                            ctx.closePath();
+                            ctx.stroke();
+                        }
+                    }
+
+                    // Draw label
+                    const label = isShowingTeeth ? 
+                        `😁 Teeth: ${confidence}%` : 
+                        `😐 No teeth: ${confidence}%`;
+                    
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                    ctx.fillRect(scaledBox.x, scaledBox.y - 30, 120, 25);
+                    ctx.fillStyle = 'white';
+                    ctx.font = '14px Arial';
+                    ctx.fillText(label, scaledBox.x + 5, scaledBox.y - 10);
+
+                    faceResults.push({
+                        index: index + 1,
+                        isShowingTeeth,
+                        confidence,
+                        expressions: Object.keys(expressions).reduce((acc, key) => {
+                            acc[key] = Math.round(expressions[key] * 100);
+                            return acc;
+                        }, {})
+                    });
+                });
+
+                // Update results
+                const percentage = Math.round((teethShowingCount / detections.length) * 100);
+                summary.innerHTML = `
+                    <div>📊 Analysis Complete!</div>
+                    <div style="margin-top: 10px;">
+                        ${teethShowingCount} out of ${detections.length} people showing teeth (${percentage}%)
+                    </div>
+                `;
+
+                // Update face list
+                faceList.innerHTML = faceResults.map(face => `
+                    <div class="face-item ${face.isShowingTeeth ? 'smiling' : 'not-smiling'}">
+                        <div style="font-weight: bold; margin-bottom: 8px;">
+                            Person ${face.index} ${face.isShowingTeeth ? '😁' : '😐'}
+                        </div>
+                        <div>Teeth Detection: ${face.confidence}%</div>
+                        <div style="font-size: 0.9em; margin-top: 8px; opacity: 0.9;">
+                            Happy: ${face.expressions.happy}% | 
+                            Neutral: ${face.expressions.neutral}% | 
+                            Sad: ${face.expressions.sad}%
+                        </div>
+                    </div>
+                `).join('');
+
+                results.style.display = 'block';
+
+            } catch (error) {
+                console.error('Analysis error:', error);
+                showError('Error during face analysis. Please try again.');
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = '🔍 Analyze Faces & Teeth';
+            }
+        });
+
+        // Load models when page is ready and face-api is available
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add a small delay to ensure face-api.js is fully loaded
+            setTimeout(loadModels, 500);
+        });
+    </script>
+</body>
+</html>
